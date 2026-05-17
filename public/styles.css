@@ -366,8 +366,11 @@ button {
 }
 
 .task-list {
+  align-content: start;
+  align-items: start;
   display: grid;
   gap: 10px;
+  grid-auto-rows: max-content;
   padding: 12px;
 }
 
@@ -377,6 +380,7 @@ button {
 }
 
 .task-card {
+  align-self: start;
   background: var(--surface);
   border: 1px solid #d8dde4;
   border-radius: var(--radius);
