@@ -52,6 +52,10 @@ const els = {
   resultGithubLink: document.querySelector("#result-github-link"),
   resultSummary: document.querySelector("#result-summary"),
   resultVerification: document.querySelector("#result-verification"),
+  routeBody: document.querySelector("#route-body"),
+  routeDetails: document.querySelector("#route-details"),
+  routePanel: document.querySelector("#route-panel"),
+  routeTitle: document.querySelector("#route-title"),
   searchInput: document.querySelector("#search-input"),
   sendCodexButton: document.querySelector("#send-codex-button"),
   sendGithubButton: document.querySelector("#send-github-button"),
@@ -161,6 +165,10 @@ function targetGithubRepo(task) {
   return task?.githubRepo || projectForTask(task)?.githubRepo || "";
 }
 
+function targetEnvironment(task) {
+  return task?.targetEnvironment || projectForTask(task)?.targetEnvironment || "";
+}
+
 function codexModeLabel(mode) {
   if (mode === "cloud") {
     return "Codex Cloud";
@@ -185,7 +193,27 @@ function projectRouteSummary(project) {
     project.defaultBranch ? `Branch: ${project.defaultBranch}` : "",
   ].filter(Boolean);
 
-  return parts.join(" · ");
+  return parts.join(" - ");
+}
+
+function resolvedTaskRoute(task) {
+  const project = projectForTask(task);
+  const mode = project?.codexTargetMode || "ask";
+  const githubRepo = targetGithubRepo(task);
+  const environment = targetEnvironment(task);
+
+  return {
+    mode,
+    modeLabel: codexModeLabel(mode),
+    githubRepo,
+    githubRepoSource: task?.githubRepo ? "Task override" : "Project default",
+    environment,
+    environmentSource: task?.targetEnvironment ? "Task override" : "Project default",
+    codexProfile: project?.codexProfile || "",
+    localWorkspacePath: project?.localWorkspacePath || "",
+    defaultBranch: project?.defaultBranch || "main",
+    syncGithub: project?.syncGithub !== false,
+  };
 }
 
 function allProjectTasks(projectId = currentProjectId) {
@@ -877,6 +905,50 @@ function renderCodexPanel(task) {
   els.codexStatusBody.textContent = "Request a task review or send the task to Codex when it is ready.";
 }
 
+function renderRoutePanel(task, { hidden = false } = {}) {
+  els.routePanel.hidden = hidden;
+  els.routeDetails.replaceChildren();
+
+  if (hidden) {
+    return;
+  }
+
+  const route = resolvedTaskRoute(task);
+  els.routeTitle.textContent = route.mode === "ask" ? "Choose route when starting Codex" : route.modeLabel;
+
+  if (route.mode === "cloud") {
+    els.routeBody.textContent = route.githubRepo
+      ? `Work will start in Codex Cloud for ${route.githubRepo}.`
+      : "Codex Cloud is selected, but no GitHub repository is configured.";
+  } else if (route.mode === "local") {
+    els.routeBody.textContent = route.localWorkspacePath
+      ? `Work will start in Local Codex using ${route.localWorkspacePath}.`
+      : "Local Codex is selected, but no local workspace path is configured.";
+  } else {
+    els.routeBody.textContent = "The route will be chosen when implementation starts.";
+  }
+
+  const details = [
+    ["GitHub repository", route.githubRepo || "Not configured", route.githubRepoSource],
+    ["Local workspace", route.localWorkspacePath || "Not configured"],
+    ["Codex project/profile", route.codexProfile || "Not configured"],
+    ["Default branch", route.defaultBranch || "Not configured"],
+    ["Environment", route.environment || "Not configured", route.environmentSource],
+    ["GitHub sync", route.syncGithub ? "Enabled" : "Disabled"],
+  ];
+
+  for (const [label, value, source] of details) {
+    const group = createEl("div", "route-detail");
+    group.append(createEl("dt", "", label));
+    const dd = createEl("dd", "", value);
+    if (source && value !== "Not configured") {
+      dd.append(createEl("span", "route-source", source));
+    }
+    group.append(dd);
+    els.routeDetails.append(group);
+  }
+}
+
 function renderProposal(review) {
   const proposal = review.proposal;
   const detailRows = [
@@ -1095,6 +1167,7 @@ function openTaskModal(task = null) {
   els.taskInputSummary.hidden = !resultMode;
   renderInputSummary(task);
   renderCodexPanel(task);
+  renderRoutePanel(task, { hidden: resultMode });
   renderGithubPanel(task);
   renderResultPanel(task);
   renderActivityPanel(task);

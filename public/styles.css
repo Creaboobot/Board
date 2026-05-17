@@ -612,6 +612,7 @@ button {
 }
 
 .status-panel,
+.route-panel,
 .github-panel {
   background: #f8fafc;
   border: 1px solid var(--soft);
@@ -622,12 +623,14 @@ button {
 }
 
 .status-panel h3,
+.route-panel h3,
 .github-panel h3,
 .proposal-card h4 {
   margin: 0;
 }
 
 .status-panel p,
+.route-panel p,
 .github-panel p,
 .proposal-card p {
   color: var(--muted);
@@ -637,6 +640,41 @@ button {
 
 .github-panel {
   background: #fff;
+}
+
+.route-details {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.route-detail {
+  background: #fff;
+  border: 1px solid #dbe3ea;
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.route-detail dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.route-detail dd {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.route-source {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .status-grid {
@@ -1030,6 +1068,7 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .route-details,
   .status-grid {
     grid-template-columns: 1fr;
   }
