@@ -12,6 +12,9 @@ const els = {
   codexStatusBody: document.querySelector("#codex-status-body"),
   codexStatusTitle: document.querySelector("#codex-status-title"),
   deleteTaskButton: document.querySelector("#delete-task-button"),
+  doneHistoryList: document.querySelector("#done-history-list"),
+  doneHistoryModal: document.querySelector("#done-history-modal"),
+  doneHistoryTitle: document.querySelector("#done-history-title"),
   githubIssueLink: document.querySelector("#github-issue-link"),
   githubStatusBody: document.querySelector("#github-status-body"),
   githubStatusTitle: document.querySelector("#github-status-title"),
@@ -30,6 +33,7 @@ const els = {
   proposalSummary: document.querySelector("#proposal-summary"),
   requestReviewButton: document.querySelector("#request-review-button"),
   requestChangesButton: document.querySelector("#request-changes-button"),
+  reviewStatusValue: document.querySelector("#review-status-value"),
   resultCard: document.querySelector("#result-card"),
   resultChangedPaths: document.querySelector("#result-changed-paths"),
   resultDetails: document.querySelector("#result-details"),
@@ -40,15 +44,21 @@ const els = {
   searchInput: document.querySelector("#search-input"),
   sendCodexButton: document.querySelector("#send-codex-button"),
   sendGithubButton: document.querySelector("#send-github-button"),
+  saveTaskButton: document.querySelector("#save-task-button"),
   syncGithubButton: document.querySelector("#sync-github-button"),
   statsGrid: document.querySelector("#stats-grid"),
   taskAcceptance: document.querySelector("#task-acceptance"),
   taskColumn: document.querySelector("#task-column"),
+  taskContextInput: document.querySelector("#task-context-input"),
+  taskContextPreview: document.querySelector("#task-context-preview"),
   taskDescription: document.querySelector("#task-description"),
+  taskEditFields: document.querySelector("#task-edit-fields"),
   taskEnvironment: document.querySelector("#task-environment"),
   taskForm: document.querySelector("#task-form"),
   taskGithubRepo: document.querySelector("#task-github-repo"),
   taskId: document.querySelector("#task-id"),
+  taskInputSummary: document.querySelector("#task-input-summary"),
+  taskInputSummaryBody: document.querySelector("#task-input-summary-body"),
   taskLabels: document.querySelector("#task-labels"),
   taskLinks: document.querySelector("#task-links"),
   taskModal: document.querySelector("#task-modal"),
@@ -59,12 +69,14 @@ const els = {
   taskSize: document.querySelector("#task-size"),
   taskTitle: document.querySelector("#task-title"),
   toast: document.querySelector("#toast"),
+  workStatusValue: document.querySelector("#work-status-value"),
 };
 
 let store = null;
 let currentProjectId = null;
 let draggedTaskId = null;
 let toastTimer = null;
+let contextImagesDraft = [];
 let accessToken = window.localStorage.getItem(tokenStorageKey) ?? "";
 
 async function api(path, options = {}) {
@@ -160,6 +172,60 @@ function latestResultForTask(taskId) {
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
 }
 
+function completedAtValue(task) {
+  return task?.completedAt || task?.githubIssueClosedAt || task?.updatedAt || task?.createdAt || "";
+}
+
+function reviewStatusLabel(task) {
+  const status = task?.codexReviewStatus ?? "idle";
+
+  if (["requested", "claimed", "cloud-triggered"].includes(status)) {
+    return "In progress";
+  }
+
+  if (status === "proposed") {
+    return "Ready";
+  }
+
+  if (status === "applied") {
+    return "Applied";
+  }
+
+  return "Not done";
+}
+
+function workStatusLabel(task) {
+  if (!task) {
+    return "Not started";
+  }
+
+  if (task.columnId === "done") {
+    return "Done";
+  }
+
+  if (task.columnId === "review" || task.codexResultStatus === "ready-for-review") {
+    return "Ready for review";
+  }
+
+  if (["claimed", "cloud-triggered"].includes(task.codexHandoffStatus) || task.githubStatus === "codex-triggered") {
+    return "In progress";
+  }
+
+  if (task.codexHandoffStatus === "requested" || task.columnId === "ready") {
+    return "Ready";
+  }
+
+  return "Not started";
+}
+
+function isResultMode(task) {
+  return Boolean(task && ["review", "done"].includes(task.columnId));
+}
+
+function currentModalTask() {
+  return store?.tasks.find((task) => task.id === els.taskId.value) ?? null;
+}
+
 function taskActivities(taskId) {
   return (store.activities ?? [])
     .filter((activity) => activity.taskId === taskId)
@@ -216,6 +282,89 @@ function createEl(tagName, className, content) {
   }
 
   return el;
+}
+
+function normalizeContextImage(image) {
+  if (!image) {
+    return null;
+  }
+
+  if (typeof image === "string") {
+    return {
+      id: `context-${Math.random().toString(36).slice(2)}`,
+      name: "Screenshot",
+      src: image,
+      type: "image",
+    };
+  }
+
+  const src = text(image.src);
+  if (!src) {
+    return null;
+  }
+
+  return {
+    id: text(image.id) || `context-${Math.random().toString(36).slice(2)}`,
+    name: text(image.name) || "Screenshot",
+    src,
+    type: text(image.type) || "image",
+    size: Number(image.size) || undefined,
+    createdAt: text(image.createdAt) || new Date().toISOString(),
+  };
+}
+
+function taskContextImages(task) {
+  return (task?.contextImages ?? []).map(normalizeContextImage).filter(Boolean);
+}
+
+function fileToContextImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      resolve({
+        id: `context-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: file.name,
+        src: reader.result,
+        type: file.type,
+        size: file.size,
+        createdAt: new Date().toISOString(),
+      });
+    });
+    reader.addEventListener("error", () => reject(new Error(`Could not read ${file.name}`)));
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderContextPreview(target, images, { removable = false } = {}) {
+  target.replaceChildren();
+  const values = (images ?? []).map(normalizeContextImage).filter(Boolean);
+
+  if (!values.length) {
+    target.append(createEl("p", "empty-list-item", "No screenshots added."));
+    return;
+  }
+
+  for (const image of values) {
+    const item = createEl("figure", "context-image");
+    const preview = document.createElement("img");
+    preview.src = image.src;
+    preview.alt = image.name;
+    const caption = createEl("figcaption", "", image.name);
+    item.append(preview, caption);
+
+    if (removable) {
+      const remove = createEl("button", "icon-button", "x");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `Remove ${image.name}`);
+      remove.addEventListener("click", () => {
+        contextImagesDraft = contextImagesDraft.filter((candidate) => candidate.id !== image.id);
+        renderContextPreview(els.taskContextPreview, contextImagesDraft, { removable: true });
+      });
+      item.append(remove);
+    }
+
+    target.append(item);
+  }
 }
 
 function formatDateTime(value) {
@@ -384,9 +533,13 @@ function renderBoard() {
     titleRow.append(createEl("h3", "", column.name), createEl("span", "task-count", String(count)));
     header.append(titleRow, createEl("p", "column-description", column.description));
 
-    const columnTasks = tasks
+    const allColumnTasks = tasks
       .filter((task) => task.columnId === column.id)
       .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0));
+    const columnTasks =
+      column.id === "done"
+        ? [...allColumnTasks].sort((left, right) => completedAtValue(right).localeCompare(completedAtValue(left))).slice(0, 10)
+        : allColumnTasks;
 
     if (!columnTasks.length) {
       list.append(createEl("p", "empty-column", "No tasks"));
@@ -396,6 +549,13 @@ function renderBoard() {
       }
     }
 
+    if (column.id === "done" && allColumnTasks.length > 10) {
+      const historyButton = createEl("button", "history-button", `View ${allColumnTasks.length - 10} older`);
+      historyButton.type = "button";
+      historyButton.addEventListener("click", () => openDoneHistory());
+      list.append(historyButton);
+    }
+
     columnEl.append(header, list);
     els.board.append(columnEl);
   }
@@ -403,6 +563,7 @@ function renderBoard() {
 
 function renderTaskCard(task) {
   const card = createEl("article", "task-card");
+  card.classList.toggle("task-card-compact", task.columnId === "done");
   card.draggable = true;
   card.tabIndex = 0;
   card.addEventListener("click", () => openTaskModal(task));
@@ -421,6 +582,12 @@ function renderTaskCard(task) {
   });
 
   const title = createEl("h4", "", task.title);
+  if (task.columnId === "done") {
+    const completed = createEl("span", "completed-date", completedAtValue(task) ? `Completed ${formatDateTime(completedAtValue(task))}` : "Completed");
+    card.append(title, completed);
+    return card;
+  }
+
   const description = createEl("p", "", task.description);
   const meta = createEl("div", "task-meta");
   const priority = createEl("span", `pill ${task.priority.toLowerCase()}`, task.priority);
@@ -511,7 +678,42 @@ function renderTaskCard(task) {
   return card;
 }
 
+function openDoneHistory() {
+  const project = currentProject();
+  const doneTasks = allProjectTasks()
+    .filter((task) => task.columnId === "done")
+    .sort((left, right) => completedAtValue(right).localeCompare(completedAtValue(left)));
+
+  els.doneHistoryTitle.textContent = project ? `${project.name} completed tasks` : "Completed tasks";
+  els.doneHistoryList.replaceChildren();
+
+  if (!doneTasks.length) {
+    els.doneHistoryList.append(createEl("li", "empty-list-item", "No completed tasks."));
+  } else {
+    for (const task of doneTasks) {
+      const item = createEl("li", "history-item");
+      const button = createEl("button", "", task.title);
+      button.type = "button";
+      button.addEventListener("click", () => {
+        els.doneHistoryModal.close();
+        openTaskModal(task);
+      });
+      const completed = createEl("span", "", completedAtValue(task) ? formatDateTime(completedAtValue(task)) : "No completion time");
+      item.append(button, completed);
+      els.doneHistoryList.append(item);
+    }
+  }
+
+  if (!els.doneHistoryModal.open) {
+    els.doneHistoryModal.showModal();
+  }
+}
+
 function fillColumnOptions(selectedColumnId) {
+  if (!els.taskColumn) {
+    return;
+  }
+
   els.taskColumn.replaceChildren();
 
   for (const column of store.columns) {
@@ -528,11 +730,12 @@ function renderCodexPanel(task) {
   els.proposalDetails.replaceChildren();
   els.applyReviewButton.dataset.reviewId = "";
   els.sendCodexButton.textContent = "Send to Codex";
+  els.reviewStatusValue.textContent = reviewStatusLabel(task);
+  els.workStatusValue.textContent = workStatusLabel(task);
 
   if (!task) {
-    els.codexStatusTitle.textContent = "Ready when the card is saved";
-    els.codexStatusBody.textContent =
-      "Save or send this task to create a Codex-readable packet without copy-paste.";
+    els.codexStatusTitle.textContent = "Draft task";
+    els.codexStatusBody.textContent = "Save the task before requesting a review or sending it to Codex.";
     return;
   }
 
@@ -540,76 +743,63 @@ function renderCodexPanel(task) {
   const handoff = latestHandoffForTask(task.id);
 
   if (task.githubStatus === "codex-triggered" || task.codexHandoffStatus === "cloud-triggered") {
-    els.codexStatusTitle.textContent = "Codex Cloud is working";
-    els.codexStatusBody.textContent =
-      "The task is running through the GitHub/Codex Cloud path. The board will sync the result back into Review.";
-    els.sendCodexButton.textContent = "Send to local Codex";
+    els.codexStatusTitle.textContent = "Codex is working";
+    els.codexStatusBody.textContent = "The task is in progress. Results will appear when Codex completes the work.";
     return;
   }
 
   if (task.codexHandoffStatus === "completed" || task.codexResultStatus === "ready-for-review") {
-    els.codexStatusTitle.textContent = "Codex result is ready";
-    els.codexStatusBody.textContent =
-      "The task has moved to Review with a read-only result for you to accept or send back for changes.";
-    els.sendCodexButton.textContent = "Resend to Codex";
+    els.codexStatusTitle.textContent = "Result ready";
+    els.codexStatusBody.textContent = "Review the result below, then confirm it or provide further directions.";
     return;
   }
 
   if (review?.status === "proposed" && review.proposal && !["doing", "review", "done"].includes(task.columnId)) {
-    els.codexStatusTitle.textContent = "Codex review proposal is ready";
-    els.codexStatusBody.textContent = "Review the proposed task shape below, then apply it before sending the task to Codex.";
-    renderProposal(review);
+    els.codexStatusTitle.textContent = "Review ready";
+    els.codexStatusBody.textContent = "A task review is ready to apply before implementation starts.";
     return;
   }
 
   if (review?.status === "requested") {
-    els.codexStatusTitle.textContent = "Task review requested";
-    els.codexStatusBody.textContent =
-      "The task is in the Codex review queue. Ask me to review the next task when you want a proposal.";
+    els.codexStatusTitle.textContent = "Review requested";
+    els.codexStatusBody.textContent = "The task is waiting for a Codex readiness review.";
     return;
   }
 
   if (review?.status === "cloud-triggered" || task.codexReviewStatus === "cloud-triggered") {
-    els.codexStatusTitle.textContent = "Codex Cloud is reviewing";
-    els.codexStatusBody.textContent =
-      `A review-only @codex request is running in ${task.githubRepo ?? "GitHub"}. The proposal will appear here after sync.`;
+    els.codexStatusTitle.textContent = "Review in progress";
+    els.codexStatusBody.textContent = "A review-only Codex request is running.";
     return;
   }
 
   if (review?.status === "claimed" || task.codexReviewStatus === "claimed") {
-    els.codexStatusTitle.textContent = "Codex is reviewing this task";
-    els.codexStatusBody.textContent =
-      "The review has been claimed. A proposal will appear here when it is posted back to the card.";
+    els.codexStatusTitle.textContent = "Review in progress";
+    els.codexStatusBody.textContent = "Codex has claimed the review.";
     return;
   }
 
   if (task.codexHandoffStatus === "changes-requested" || task.codexResultStatus === "changes-requested") {
-    els.codexStatusTitle.textContent = "Changes requested";
-    els.codexStatusBody.textContent =
-      "Update the card with your final guidance, then send it to Codex again when it is ready.";
-    els.sendCodexButton.textContent = "Send revised task";
+    els.codexStatusTitle.textContent = "Further directions sent";
+    els.codexStatusBody.textContent = "The task has been sent back to In Progress.";
     return;
   }
 
   if (task.codexHandoffStatus === "accepted" || task.codexResultStatus === "accepted") {
-    els.codexStatusTitle.textContent = "Task accepted";
+    els.codexStatusTitle.textContent = "Task confirmed";
     els.codexStatusBody.textContent = "The result has been accepted and the task is done.";
-    els.sendCodexButton.textContent = "Resend to Codex";
     return;
   }
 
   if (hasActiveLocalHandoff(task, handoff) && handoff.status === "requested") {
     els.codexStatusTitle.textContent = "Task sent to Codex";
-    els.codexStatusBody.textContent =
-      "The task is in Ready and queued for Codex. A Codex instance can claim the next queued task without pasting the card.";
+    els.codexStatusBody.textContent = "The task is queued for local Codex.";
     els.sendCodexButton.textContent = "Resend to Codex";
     return;
   }
 
   if ((hasActiveLocalHandoff(task, handoff) && handoff.status === "claimed") || (task.codexHandoffStatus === "claimed" && !hasCloudWorkflow(task))) {
     els.codexStatusTitle.textContent = "Codex is working on this task";
-    els.codexStatusBody.textContent =
-      "The handoff has been claimed and the task has moved into In Progress.";
+    els.codexStatusBody.textContent = "The handoff has been claimed.";
     els.sendCodexButton.textContent = "Resend to Codex";
     return;
   }
@@ -622,8 +812,7 @@ function renderCodexPanel(task) {
   }
 
   els.codexStatusTitle.textContent = "No Codex activity yet";
-  els.codexStatusBody.textContent =
-    "Request a task review to shape the card first, or send it directly when it is ready.";
+  els.codexStatusBody.textContent = "Request a task review or send the task to Codex when it is ready.";
 }
 
 function renderProposal(review) {
@@ -656,8 +845,9 @@ function renderProposal(review) {
 function renderGithubPanel(task) {
   els.githubIssueLink.hidden = true;
   els.githubIssueLink.href = "#";
+  els.sendGithubButton.hidden = true;
   els.sendGithubButton.textContent = "Send to GitHub/Codex Cloud";
-  els.syncGithubButton.hidden = !task?.githubIssueUrl || task?.githubStatus === "accepted";
+  els.syncGithubButton.hidden = true;
   els.syncGithubButton.dataset.taskId = task?.id ?? "";
   els.syncGithubButton.textContent = task?.githubStatus === "completed" ? "Sync again" : "Check GitHub result";
 
@@ -717,6 +907,23 @@ function renderGithubPanel(task) {
     `Create a GitHub issue from this card and optionally trigger Codex Cloud without using this local chat.${targetText}${environmentText}`;
 }
 
+function stripCodexCommentary(value) {
+  const body = text(value).trim();
+
+  if (!body) {
+    return "";
+  }
+
+  const resultMatch = body.match(/(?:^|\n)#{2,3}\s*Result\s*\n([\s\S]*?)(?=\n#{2,3}\s*(Summary|Testing|Verification|Changed paths|Follow-ups|Notes|$))/i);
+  if (resultMatch?.[1]?.trim()) {
+    return resultMatch[1].trim();
+  }
+
+  return body
+    .replace(/\n#{2,3}\s*(Summary|Testing|Verification|Verification notes|Changed paths|Follow-ups|Pull requests?|GitHub)[\s\S]*$/i, "")
+    .trim();
+}
+
 function renderResultPanel(task) {
   const result = task ? latestResultForTask(task.id) : null;
   const resultIsClosed =
@@ -730,6 +937,8 @@ function renderResultPanel(task) {
   els.resultGithubLink.href = "#";
   els.acceptTaskButton.hidden = resultIsClosed;
   els.requestChangesButton.hidden = resultIsClosed;
+  els.acceptTaskButton.textContent = "Confirm result";
+  els.requestChangesButton.textContent = "Further directions";
   els.acceptTaskButton.dataset.taskId = task?.id ?? "";
   els.requestChangesButton.dataset.taskId = task?.id ?? "";
 
@@ -738,7 +947,7 @@ function renderResultPanel(task) {
   }
 
   els.resultSummary.textContent = result.summary || "Codex completed the task.";
-  els.resultDetails.textContent = result.details || "No additional detail recorded.";
+  els.resultDetails.textContent = stripCodexCommentary(result.details) || "No result text recorded.";
   if (result.githubCommentUrl || result.codexTaskUrl || result.githubIssueUrl) {
     els.resultGithubLink.href = result.githubCommentUrl || result.codexTaskUrl || result.githubIssueUrl;
     els.resultGithubLink.hidden = false;
@@ -777,60 +986,80 @@ function renderActivityPanel(task) {
   }
 }
 
+function renderInputSummary(task) {
+  els.taskInputSummaryBody.replaceChildren();
+
+  if (!task) {
+    return;
+  }
+
+  const rows = [
+    ["Title", task.title],
+    ["Description", task.description || "No description."],
+    ["Acceptance criteria", (task.acceptanceCriteria ?? []).join("\n") || "No acceptance criteria."],
+  ];
+
+  for (const [label, value] of rows) {
+    const group = createEl("div", "summary-row");
+    group.append(createEl("strong", "", label), createEl("p", "", value));
+    els.taskInputSummaryBody.append(group);
+  }
+
+  const images = taskContextImages(task);
+  if (images.length) {
+    const group = createEl("div", "summary-row");
+    const preview = createEl("div", "context-preview");
+    group.append(createEl("strong", "", "Screenshot context"), preview);
+    els.taskInputSummaryBody.append(group);
+    renderContextPreview(preview, images);
+  }
+}
+
 function openTaskModal(task = null) {
   const fallbackColumn = "backlog";
+  const resultMode = isResultMode(task);
 
   els.taskId.value = task?.id ?? "";
   els.taskTitle.value = text(task?.title);
   els.taskDescription.value = text(task?.description);
-  els.taskGithubRepo.value = text(task?.githubRepo);
-  els.taskGithubRepo.placeholder = currentProject()?.githubRepo
-    ? `${currentProject().githubRepo} (project default)`
-    : "owner/repo";
-  els.taskEnvironment.value = text(task?.targetEnvironment);
-  els.taskPriority.value = task?.priority ?? "Medium";
-  els.taskSize.value = task?.size ?? "M";
-  els.taskLabels.value = (task?.labels ?? []).join(", ");
   els.taskAcceptance.value = (task?.acceptanceCriteria ?? []).join("\n");
-  els.taskLinks.value = (task?.links ?? []).join("\n");
-  els.taskNotes.value = text(task?.notes);
+  contextImagesDraft = taskContextImages(task);
+  renderContextPreview(els.taskContextPreview, contextImagesDraft, { removable: true });
   els.taskModalKicker.textContent = currentProject()?.name ?? "Task";
-  els.taskModalTitle.textContent = task ? "Edit task" : "New task";
-  els.deleteTaskButton.hidden = !task;
+  els.taskModalTitle.textContent = task ? (resultMode ? "Task result" : "Edit task") : "New task";
+  els.deleteTaskButton.hidden = !task || resultMode;
   fillColumnOptions(task?.columnId ?? fallbackColumn);
+  els.taskEditFields.hidden = resultMode;
+  els.taskInputSummary.hidden = !resultMode;
+  renderInputSummary(task);
   renderCodexPanel(task);
   renderGithubPanel(task);
   renderResultPanel(task);
   renderActivityPanel(task);
+  els.requestReviewButton.hidden = resultMode;
+  els.sendCodexButton.hidden = resultMode;
+  els.saveTaskButton.hidden = resultMode;
   if (!els.taskModal.open) {
     els.taskModal.showModal();
   }
-  els.taskTitle.focus();
+  if (!resultMode) {
+    els.taskTitle.focus();
+  }
 }
 
 function readTaskForm() {
+  const task = currentModalTask();
+
   return {
-    projectId: currentProjectId,
-    columnId: els.taskColumn.value,
+    projectId: task?.projectId ?? currentProjectId,
+    columnId: task?.columnId ?? "backlog",
     title: els.taskTitle.value.trim(),
     description: els.taskDescription.value.trim(),
-    priority: els.taskPriority.value,
-    size: els.taskSize.value,
-    githubRepo: els.taskGithubRepo.value.trim(),
-    targetEnvironment: els.taskEnvironment.value.trim(),
-    labels: els.taskLabels.value
-      .split(",")
-      .map((label) => label.trim())
-      .filter(Boolean),
     acceptanceCriteria: els.taskAcceptance.value
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean),
-    links: els.taskLinks.value
-      .split("\n")
-      .map((link) => link.trim())
-      .filter(Boolean),
-    notes: els.taskNotes.value.trim(),
+    contextImages: contextImagesDraft,
   };
 }
 
@@ -861,6 +1090,8 @@ async function persistTaskFromForm() {
 
   if (savedTask) {
     els.taskId.value = savedTask.id;
+    contextImagesDraft = taskContextImages(savedTask);
+    renderContextPreview(els.taskContextPreview, contextImagesDraft, { removable: true });
     renderCodexPanel(savedTask);
     renderGithubPanel(savedTask);
     renderResultPanel(savedTask);
@@ -873,6 +1104,33 @@ async function persistTaskFromForm() {
 els.searchInput.addEventListener("input", renderBoard);
 
 els.newTaskButton.addEventListener("click", () => openTaskModal());
+
+els.taskContextInput.addEventListener("change", async () => {
+  const files = Array.from(els.taskContextInput.files ?? []);
+
+  if (!files.length) {
+    return;
+  }
+
+  try {
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        throw new Error(`${file.name} is not an image.`);
+      }
+
+      if (file.size > 1_500_000) {
+        throw new Error(`${file.name} is larger than 1.5 MB.`);
+      }
+    }
+
+    const images = await Promise.all(files.map(fileToContextImage));
+    contextImagesDraft = [...contextImagesDraft, ...images];
+    renderContextPreview(els.taskContextPreview, contextImagesDraft, { removable: true });
+    els.taskContextInput.value = "";
+  } catch (error) {
+    showToast(error.message);
+  }
+});
 
 els.newProjectButton.addEventListener("click", () => {
   els.projectName.value = "";
@@ -1077,7 +1335,7 @@ els.acceptTaskButton.addEventListener("click", async () => {
     if (task) {
       openTaskModal(task);
     }
-    showToast(closeGithubIssue ? "Task done and GitHub issue closed" : "Task moved to Done");
+    showToast(closeGithubIssue ? "Task confirmed and GitHub issue closed" : "Task confirmed");
   } catch (error) {
     showToast(error.message);
   }
@@ -1090,7 +1348,7 @@ els.requestChangesButton.addEventListener("click", async () => {
     return;
   }
 
-  const note = window.prompt("What should Codex change?", "");
+  const note = window.prompt("What further direction should Codex follow?", "");
 
   if (note === null) {
     return;

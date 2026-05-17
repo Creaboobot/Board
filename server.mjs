@@ -150,12 +150,16 @@ function normalizeStore(store) {
     task.labels ??= [];
     task.acceptanceCriteria ??= [];
     task.links ??= [];
+    task.contextImages = cleanContextImages(task.contextImages);
     task.githubRepo = cleanRepoName(task.githubRepo) || "";
     task.targetEnvironment = cleanString(task.targetEnvironment);
     task.codexHandoffStatus ??= "idle";
     task.codexReviewStatus ??= "idle";
     task.codexResultStatus ??= "idle";
     task.githubStatus ??= "idle";
+    if (task.columnId === "done") {
+      task.completedAt = cleanString(task.completedAt) || cleanString(task.githubIssueClosedAt) || cleanString(task.updatedAt);
+    }
   }
 
   backfillActivities(store);
@@ -236,6 +240,39 @@ function cleanList(value) {
   }
 
   return [];
+}
+
+function cleanContextImages(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") {
+        const src = cleanString(item);
+        return src ? { id: `context-${randomUUID().slice(0, 8)}`, name: "Screenshot", src } : null;
+      }
+
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const src = cleanString(item.src);
+      if (!src) {
+        return null;
+      }
+
+      return {
+        id: cleanString(item.id) || `context-${randomUUID().slice(0, 8)}`,
+        name: cleanString(item.name, "Screenshot"),
+        src,
+        type: cleanString(item.type),
+        size: Number(item.size) || undefined,
+        createdAt: cleanString(item.createdAt) || now(),
+      };
+    })
+    .filter(Boolean);
 }
 
 function recordActivity(store, task, type, message, meta = {}) {
@@ -356,6 +393,24 @@ function listMarkdown(items, fallback = "- none") {
   return list.length ? list.map((item) => `- ${item}`).join("\n") : fallback;
 }
 
+function contextImagesMarkdown(task) {
+  const images = cleanContextImages(task.contextImages);
+
+  if (!images.length) {
+    return "- none";
+  }
+
+  return images
+    .map((image) => {
+      if (/^https?:\/\//i.test(image.src)) {
+        return `- [${image.name}](${image.src})`;
+      }
+
+      return `- ${image.name} (stored on the board as screenshot context)`;
+    })
+    .join("\n");
+}
+
 function githubIssueMarkdown(store, task) {
   const project = requireProject(store, task.projectId);
   const targetRepo = githubRepoForTask(store, task);
@@ -374,6 +429,9 @@ function githubIssueMarkdown(store, task) {
     "",
     "## Links",
     listMarkdown(task.links),
+    "",
+    "## Screenshot Context",
+    contextImagesMarkdown(task),
     "",
     "## Target Repository",
     targetRepo || "No repository configured.",
@@ -1598,6 +1656,7 @@ async function handleApi(req, res, url) {
       targetEnvironment: cleanString(payload.targetEnvironment),
       labels: cleanList(payload.labels),
       acceptanceCriteria: cleanList(payload.acceptanceCriteria),
+      contextImages: cleanContextImages(payload.contextImages),
       notes: cleanString(payload.notes),
       links: cleanList(payload.links),
       codexHandoffStatus: "idle",
@@ -1957,6 +2016,11 @@ async function handleApi(req, res, url) {
       task.columnId = cleanString(payload.columnId, task.columnId);
       requireColumn(store, task.columnId);
       task.sortOrder = nextSortOrder(store, task.projectId, task.columnId);
+      if (task.columnId === "done") {
+        task.completedAt = task.completedAt || now();
+      } else if (previousColumnId === "done") {
+        task.completedAt = "";
+      }
     }
 
     for (const key of ["title", "description", "priority", "size", "targetEnvironment", "notes"]) {
@@ -1977,6 +2041,10 @@ async function handleApi(req, res, url) {
       if (payload[key] !== undefined) {
         task[key] = cleanList(payload[key]);
       }
+    }
+
+    if (payload.contextImages !== undefined) {
+      task.contextImages = cleanContextImages(payload.contextImages);
     }
 
     task.updatedAt = now();
@@ -2166,6 +2234,7 @@ async function handleApi(req, res, url) {
     }
 
     moveTaskToColumn(store, task, "done");
+    task.completedAt = acceptedAt;
     task.codexHandoffStatus = "accepted";
     task.codexResultStatus = "accepted";
     if (task.githubIssueNumber) {
@@ -2213,13 +2282,14 @@ async function handleApi(req, res, url) {
       task.githubChangeCommentUrl = githubComment.html_url;
       task.codexHandoffStatus = "cloud-triggered";
       task.codexResultStatus = "in-progress";
+      moveTaskToColumn(store, task, "doing");
       recordActivity(store, task, "changes-requested-github", "Changes requested and sent to Codex Cloud.", {
         resultId: result?.id,
         note,
         codexCommentUrl: githubComment.html_url,
       });
     } else {
-      moveTaskToColumn(store, task, "ready");
+      moveTaskToColumn(store, task, "doing");
       task.codexHandoffStatus = "changes-requested";
       task.codexResultStatus = "changes-requested";
       recordActivity(store, task, "changes-requested", "Changes requested.", {

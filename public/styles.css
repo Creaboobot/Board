@@ -19,6 +19,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;
@@ -407,6 +411,20 @@ button {
   overflow-wrap: anywhere;
 }
 
+.task-card-compact {
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.task-card-compact h4 {
+  font-size: 14px;
+}
+
+.completed-date {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .task-card p {
   color: var(--muted);
   font-size: 13px;
@@ -479,6 +497,16 @@ button {
   color: var(--muted);
   font-size: 13px;
   padding: 14px;
+}
+
+.history-button {
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius);
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px;
 }
 
 .modal {
@@ -558,7 +586,7 @@ button {
   resize: vertical;
 }
 
-.codex-panel,
+.status-panel,
 .github-panel {
   background: #f8fafc;
   border: 1px solid var(--soft);
@@ -568,13 +596,13 @@ button {
   padding: 14px;
 }
 
-.codex-panel h3,
+.status-panel h3,
 .github-panel h3,
 .proposal-card h4 {
   margin: 0;
 }
 
-.codex-panel p,
+.status-panel p,
 .github-panel p,
 .proposal-card p {
   color: var(--muted);
@@ -584,6 +612,98 @@ button {
 
 .github-panel {
   background: #fff;
+}
+
+.status-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-grid div {
+  background: #fff;
+  border: 1px solid #dbe3ea;
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.status-grid span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.status-grid strong {
+  font-size: 14px;
+}
+
+.context-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.context-image {
+  border: 1px solid #dbe3ea;
+  border-radius: var(--radius);
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px;
+  position: relative;
+  width: 144px;
+}
+
+.context-image img {
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.context-image figcaption {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-image .icon-button {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+}
+
+.input-summary {
+  background: #fff;
+  border: 1px solid var(--soft);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.input-summary summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.input-summary-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.summary-row {
+  display: grid;
+  gap: 4px;
+}
+
+.summary-row p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .issue-link {
@@ -674,6 +794,44 @@ button {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.result-grid[hidden] {
+  display: none;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-item {
+  align-items: center;
+  border: 1px solid var(--soft);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.history-item button {
+  background: transparent;
+  border: 0;
+  color: #111827;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+
+.history-item span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .result-grid h4 {
@@ -845,5 +1003,14 @@ button {
 
   .result-grid {
     grid-template-columns: 1fr;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-item {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
