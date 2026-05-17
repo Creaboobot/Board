@@ -464,6 +464,41 @@ function hasActiveLocalHandoff(task, handoff) {
   return handoff.status === "claimed" && task.columnId === "doing";
 }
 
+function startCodexButtonLabel(task) {
+  if (!task) {
+    return "Start Codex";
+  }
+
+  const route = resolvedTaskRoute(task);
+
+  if (route.mode === "cloud") {
+    return route.githubRepo ? `Start Codex Cloud in ${route.githubRepo}` : "Start Codex Cloud";
+  }
+
+  if (route.mode === "local") {
+    return "Start Local Codex";
+  }
+
+  return "Start Codex";
+}
+
+function chooseCodexStartMode(task) {
+  const route = resolvedTaskRoute(task);
+
+  if (route.mode === "cloud" || route.mode === "local") {
+    return route.mode;
+  }
+
+  if (route.githubRepo) {
+    const startCloud = window.confirm(`Start Codex Cloud in ${route.githubRepo}?`);
+    if (startCloud) {
+      return "cloud";
+    }
+  }
+
+  return window.confirm("Start Local Codex instead?") ? "local" : null;
+}
+
 function renderList(target, items, emptyText) {
   target.replaceChildren();
   const values = (items ?? []).filter(Boolean);
@@ -819,13 +854,13 @@ function renderCodexPanel(task) {
   els.proposalCard.hidden = true;
   els.proposalDetails.replaceChildren();
   els.applyReviewButton.dataset.reviewId = "";
-  els.sendCodexButton.textContent = "Send to Codex";
+  els.sendCodexButton.textContent = startCodexButtonLabel(task);
   els.reviewStatusValue.textContent = reviewStatusLabel(task);
   els.workStatusValue.textContent = workStatusLabel(task);
 
   if (!task) {
     els.codexStatusTitle.textContent = "Draft task";
-    els.codexStatusBody.textContent = "Save the task before requesting a review or sending it to Codex.";
+    els.codexStatusBody.textContent = "Save the task before requesting a review or starting Codex.";
     return;
   }
 
@@ -883,26 +918,24 @@ function renderCodexPanel(task) {
   if (hasActiveLocalHandoff(task, handoff) && handoff.status === "requested") {
     els.codexStatusTitle.textContent = "Task sent to Codex";
     els.codexStatusBody.textContent = "The task is queued for local Codex.";
-    els.sendCodexButton.textContent = "Resend to Codex";
     return;
   }
 
   if ((hasActiveLocalHandoff(task, handoff) && handoff.status === "claimed") || (task.codexHandoffStatus === "claimed" && !hasCloudWorkflow(task))) {
     els.codexStatusTitle.textContent = "Codex is working on this task";
     els.codexStatusBody.textContent = "The handoff has been claimed.";
-    els.sendCodexButton.textContent = "Resend to Codex";
     return;
   }
 
   if (review?.status === "applied" || task.codexReviewStatus === "applied") {
     els.codexStatusTitle.textContent = "Review proposal applied";
     els.codexStatusBody.textContent =
-      "The task has been updated from the review proposal and is ready to send to Codex when you want implementation to begin.";
+      "The task has been updated from the review proposal and is ready to start Codex when you want implementation to begin.";
     return;
   }
 
   els.codexStatusTitle.textContent = "No Codex activity yet";
-  els.codexStatusBody.textContent = "Request a task review or send the task to Codex when it is ready.";
+  els.codexStatusBody.textContent = "Request a task review or start Codex when it is ready.";
 }
 
 function renderRoutePanel(task, { hidden = false } = {}) {
@@ -980,7 +1013,7 @@ function renderGithubPanel(task) {
   els.githubIssueLink.hidden = true;
   els.githubIssueLink.href = "#";
   els.sendGithubButton.hidden = true;
-  els.sendGithubButton.textContent = "Send to GitHub/Codex Cloud";
+  els.sendGithubButton.textContent = "Start Codex Cloud";
   els.syncGithubButton.hidden = true;
   els.syncGithubButton.dataset.taskId = task?.id ?? "";
   els.syncGithubButton.textContent = task?.githubStatus === "completed" ? "Sync again" : "Check GitHub result";
@@ -1032,13 +1065,13 @@ function renderGithubPanel(task) {
   if (task.githubStatus === "issue-created") {
     els.githubStatusTitle.textContent = "GitHub issue created";
     els.githubStatusBody.textContent =
-      `Issue #${task.githubIssueNumber} exists in ${task.githubRepo}. Trigger Codex Cloud from here when you are ready.${environmentText}${githubLastSyncText(task)}`;
+      `Issue #${task.githubIssueNumber} exists in ${task.githubRepo}. Use Start Codex when you are ready to trigger Codex Cloud.${environmentText}${githubLastSyncText(task)}`;
     return;
   }
 
   els.githubStatusTitle.textContent = "Not sent to GitHub";
   els.githubStatusBody.textContent =
-    `Create a GitHub issue from this card and optionally trigger Codex Cloud without using this local chat.${targetText}${environmentText}`;
+    `Start Codex Cloud from this card to create a GitHub issue and trigger implementation without using this local chat.${targetText}${environmentText}`;
 }
 
 function stripCodexCommentary(value) {
@@ -1236,6 +1269,87 @@ async function persistTaskFromForm() {
   return savedTask;
 }
 
+function reopenTaskFromStore(nextStore, taskId) {
+  const updatedTask = nextStore.tasks.find((item) => item.id === taskId);
+
+  if (updatedTask) {
+    openTaskModal(updatedTask);
+  }
+
+  return updatedTask;
+}
+
+async function startLocalCodex(task) {
+  const nextStore = await api(`/api/tasks/${task.id}/handoff`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  setStore(nextStore);
+  reopenTaskFromStore(nextStore, task.id);
+  showToast("Task moved to Ready and sent to Local Codex");
+}
+
+async function startCloudCodex(task) {
+  const route = resolvedTaskRoute(task);
+
+  if (!route.githubRepo && !task.githubRepo) {
+    throw new Error("No GitHub repository is configured for this project.");
+  }
+
+  if (task.githubIssueUrl) {
+    const triggerExisting = window.confirm(
+      "Post the implementation @codex request to the existing GitHub issue so this task stays in the same issue thread?",
+    );
+
+    if (!triggerExisting) {
+      return;
+    }
+
+    const response = await api(`/api/tasks/${task.id}/github-retrigger`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    setStore(response.store);
+    reopenTaskFromStore(response.store, task.id);
+    showToast("Codex Cloud triggered on existing issue");
+    return;
+  }
+
+  const triggerCodex = window.confirm(
+    "Create a GitHub issue and add an @codex comment to start Codex Cloud work?",
+  );
+
+  if (!triggerCodex) {
+    const issueOnly = window.confirm("Create the GitHub issue without triggering Codex Cloud?");
+    if (!issueOnly) {
+      return;
+    }
+  }
+
+  const response = await api(`/api/tasks/${task.id}/github-export`, {
+    method: "POST",
+    body: JSON.stringify({ triggerCodex }),
+  });
+  setStore(response.store);
+  reopenTaskFromStore(response.store, task.id);
+  showToast(triggerCodex ? "GitHub issue created and Codex Cloud triggered" : "GitHub issue created");
+}
+
+async function startCodexForTask(task) {
+  const mode = chooseCodexStartMode(task);
+
+  if (!mode) {
+    return;
+  }
+
+  if (mode === "cloud") {
+    await startCloudCodex(task);
+    return;
+  }
+
+  await startLocalCodex(task);
+}
+
 els.searchInput.addEventListener("input", renderBoard);
 
 els.newTaskButton.addEventListener("click", () => openTaskModal());
@@ -1333,19 +1447,10 @@ els.sendCodexButton.addEventListener("click", async () => {
   try {
     const task = await persistTaskFromForm();
     if (!task) {
-      throw new Error("Save the task before sending it to Codex.");
+      throw new Error("Save the task before starting Codex.");
     }
 
-    const nextStore = await api(`/api/tasks/${task.id}/handoff`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-    setStore(nextStore);
-    const updatedTask = nextStore.tasks.find((item) => item.id === task.id);
-    if (updatedTask) {
-      openTaskModal(updatedTask);
-    }
-    showToast("Task moved to Ready and sent to Codex");
+    await startCodexForTask(task);
   } catch (error) {
     showToast(error.message);
   }
@@ -1355,52 +1460,10 @@ els.sendGithubButton.addEventListener("click", async () => {
   try {
     const task = await persistTaskFromForm();
     if (!task) {
-      throw new Error("Save the task before sending it to GitHub.");
+      throw new Error("Save the task before starting Codex Cloud.");
     }
 
-    if (task.githubIssueUrl) {
-      const triggerExisting = window.confirm(
-        "Post the implementation @codex request to the existing GitHub issue so this task stays in the same issue thread?",
-      );
-
-      if (!triggerExisting) {
-        return;
-      }
-
-      const response = await api(`/api/tasks/${task.id}/github-retrigger`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      setStore(response.store);
-      const updatedTask = response.store.tasks.find((item) => item.id === task.id);
-      if (updatedTask) {
-        openTaskModal(updatedTask);
-      }
-      showToast("Codex Cloud triggered on existing issue");
-      return;
-    }
-
-    const triggerCodex = window.confirm(
-      "Create a GitHub issue and add an @codex comment to start Codex Cloud work?",
-    );
-
-    if (!triggerCodex) {
-      const issueOnly = window.confirm("Create the GitHub issue without triggering Codex Cloud?");
-      if (!issueOnly) {
-        return;
-      }
-    }
-
-    const response = await api(`/api/tasks/${task.id}/github-export`, {
-      method: "POST",
-      body: JSON.stringify({ triggerCodex }),
-    });
-    setStore(response.store);
-    const updatedTask = response.store.tasks.find((item) => item.id === task.id);
-    if (updatedTask) {
-      openTaskModal(updatedTask);
-    }
-    showToast(triggerCodex ? "GitHub issue created and Codex Cloud triggered" : "GitHub issue created");
+    await startCloudCodex(task);
   } catch (error) {
     showToast(error.message);
   }

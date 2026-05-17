@@ -37,7 +37,7 @@ The intended flow is:
 1. Create a task in Backlog.
 2. Press `Request task review`. With GitHub configured, this creates or reuses the task's GitHub issue and posts a review-only `@codex` request.
 3. When Codex Cloud posts the review proposal, the board syncs it back into the card. Read the proposal, edit the card if needed, then press `Apply proposal`.
-4. Press `Send to GitHub/Codex Cloud` when you want cloud Codex to start. If the review already created an issue, implementation is triggered in that same GitHub issue thread. The task moves to In Progress.
+4. Press `Start Codex` when you want implementation to begin. The project route decides whether this starts Codex Cloud or Local Codex. If the review already created a GitHub issue, Codex Cloud implementation is triggered in that same issue thread. The task moves to In Progress.
 5. The server checks GitHub automatically. When a Codex completion comment appears, the result is copied into the card and the task moves to Review.
 6. Press `Accept` to move the task to Done, optionally closing the linked GitHub issue.
 7. Press `Request changes` to add guidance. If the task has a GitHub issue, the board can post that guidance back to GitHub and trigger Codex Cloud again.
@@ -45,7 +45,7 @@ The intended flow is:
 The local-only path is still available:
 
 - If GitHub is not configured, `Request task review` falls back to a local proposal.
-- `Send to Codex` moves a task to Ready and creates a local Markdown handoff packet under `data/handoffs`.
+- `Start Local Codex` moves a task to Ready and creates a local Markdown handoff packet under `data/handoffs`.
 - A local Codex instance can claim and complete those handoffs through the API below.
 - GitHub/Codex Cloud handoffs supersede stale local handoffs, so old local queue items do not keep appearing as active work.
 
@@ -87,7 +87,7 @@ Each task can also set a `Repository override` and `Environment guidance`. Leave
 
 ## GitHub and Codex Cloud handoff
 
-Set `GITHUB_DEFAULT_REPO` and `GITHUB_TOKEN` to enable the `Send to GitHub/Codex Cloud` task action. The current default target is:
+Set `GITHUB_DEFAULT_REPO` and `GITHUB_TOKEN` to enable the Codex Cloud route behind `Start Codex`. The current default target is:
 
 ```text
 GITHUB_DEFAULT_REPO=Creaboobot/Board
