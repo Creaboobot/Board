@@ -208,6 +208,14 @@ button {
   max-width: 760px;
 }
 
+.project-route-summary {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .topbar-actions {
   align-items: center;
   display: flex;
@@ -584,6 +592,23 @@ button {
   min-height: 92px;
   padding: 10px;
   resize: vertical;
+}
+
+.checkbox-field {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.checkbox-field input {
+  height: 18px;
+  width: 18px;
+}
+
+.checkbox-field span {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .status-panel,

@@ -36,6 +36,7 @@
               <p class="eyebrow" id="project-kicker">Current project</p>
               <h2 id="project-title">Loading</h2>
               <p id="project-description"></p>
+              <p class="project-route-summary" id="project-route-summary"></p>
             </div>
           </div>
 
@@ -44,6 +45,7 @@
               <span class="visually-hidden">Search tasks</span>
               <input id="search-input" type="search" placeholder="Search tasks" />
             </label>
+            <button class="ghost-button" id="project-settings-button" type="button">Project settings</button>
             <button class="primary-button" id="new-task-button" type="button">New task</button>
           </div>
         </header>
@@ -201,7 +203,7 @@
         <div class="modal-header">
           <div>
             <p class="eyebrow">Project</p>
-            <h2>New project</h2>
+            <h2 id="project-modal-title">New project</h2>
           </div>
           <button class="icon-button" value="cancel" type="button" data-close-modal aria-label="Close">
             <span aria-hidden="true">x</span>
@@ -223,8 +225,47 @@
           <input id="project-color-input" name="color" type="color" value="#334155" />
         </label>
 
+        <label class="field">
+          <span>GitHub repository</span>
+          <input id="project-github-repo" name="githubRepo" placeholder="owner/repository" />
+        </label>
+
+        <label class="field">
+          <span>Codex target mode</span>
+          <select id="project-codex-mode" name="codexTargetMode">
+            <option value="ask">Ask each time</option>
+            <option value="cloud">Codex Cloud</option>
+            <option value="local">Local Codex</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Codex project/profile</span>
+          <input id="project-codex-profile" name="codexProfile" placeholder="Optional profile name" />
+        </label>
+
+        <label class="field">
+          <span>Local workspace path</span>
+          <input id="project-local-workspace" name="localWorkspacePath" placeholder="C:\path\to\workspace" />
+        </label>
+
+        <label class="field">
+          <span>Default branch</span>
+          <input id="project-default-branch" name="defaultBranch" placeholder="main" />
+        </label>
+
+        <label class="field">
+          <span>Environment guidance</span>
+          <textarea id="project-environment" name="targetEnvironment" rows="3"></textarea>
+        </label>
+
+        <label class="checkbox-field">
+          <input id="project-sync-github" name="syncGithub" type="checkbox" checked />
+          <span>Sync GitHub results for this project</span>
+        </label>
+
         <div class="modal-footer">
-          <button class="primary-button" type="submit">Create project</button>
+          <button class="primary-button" id="project-submit-button" type="submit">Create project</button>
         </div>
       </form>
     </dialog>

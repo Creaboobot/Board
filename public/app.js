@@ -21,12 +21,23 @@ const els = {
   newProjectButton: document.querySelector("#new-project-button"),
   newTaskButton: document.querySelector("#new-task-button"),
   projectColor: document.querySelector("#project-color"),
+  projectCodexMode: document.querySelector("#project-codex-mode"),
+  projectCodexProfile: document.querySelector("#project-codex-profile"),
+  projectDefaultBranch: document.querySelector("#project-default-branch"),
   projectDescription: document.querySelector("#project-description"),
   projectDescriptionInput: document.querySelector("#project-description-input"),
+  projectEnvironment: document.querySelector("#project-environment"),
   projectForm: document.querySelector("#project-form"),
+  projectGithubRepo: document.querySelector("#project-github-repo"),
   projectList: document.querySelector("#project-list"),
+  projectLocalWorkspace: document.querySelector("#project-local-workspace"),
   projectModal: document.querySelector("#project-modal"),
+  projectModalTitle: document.querySelector("#project-modal-title"),
   projectName: document.querySelector("#project-name"),
+  projectRouteSummary: document.querySelector("#project-route-summary"),
+  projectSettingsButton: document.querySelector("#project-settings-button"),
+  projectSubmitButton: document.querySelector("#project-submit-button"),
+  projectSyncGithub: document.querySelector("#project-sync-github"),
   projectTitle: document.querySelector("#project-title"),
   proposalCard: document.querySelector("#proposal-card"),
   proposalDetails: document.querySelector("#proposal-details"),
@@ -148,6 +159,33 @@ function projectForTask(task) {
 
 function targetGithubRepo(task) {
   return task?.githubRepo || projectForTask(task)?.githubRepo || "";
+}
+
+function codexModeLabel(mode) {
+  if (mode === "cloud") {
+    return "Codex Cloud";
+  }
+
+  if (mode === "local") {
+    return "Local Codex";
+  }
+
+  return "Ask each time";
+}
+
+function projectRouteSummary(project) {
+  if (!project) {
+    return "";
+  }
+
+  const parts = [
+    codexModeLabel(project.codexTargetMode),
+    project.githubRepo ? project.githubRepo : "No GitHub repository",
+    project.localWorkspacePath ? `Workspace: ${project.localWorkspacePath}` : "",
+    project.defaultBranch ? `Branch: ${project.defaultBranch}` : "",
+  ].filter(Boolean);
+
+  return parts.join(" · ");
 }
 
 function allProjectTasks(projectId = currentProjectId) {
@@ -455,12 +493,16 @@ function renderHeader() {
   if (!project) {
     els.projectTitle.textContent = "No project";
     els.projectDescription.textContent = "";
+    els.projectRouteSummary.textContent = "";
+    els.projectSettingsButton.disabled = true;
     return;
   }
 
   els.projectTitle.textContent = project.name;
   els.projectDescription.textContent = project.description;
+  els.projectRouteSummary.textContent = projectRouteSummary(project);
   els.projectColor.style.background = project.color;
+  els.projectSettingsButton.disabled = false;
 }
 
 function renderStats() {
@@ -707,6 +749,26 @@ function openDoneHistory() {
   if (!els.doneHistoryModal.open) {
     els.doneHistoryModal.showModal();
   }
+}
+
+function openProjectModal(project = null) {
+  els.projectForm.dataset.projectId = project?.id ?? "";
+  els.projectModalTitle.textContent = project ? "Project settings" : "New project";
+  els.projectSubmitButton.textContent = project ? "Save project" : "Create project";
+  els.projectName.value = text(project?.name);
+  els.projectDescriptionInput.value = text(project?.description);
+  document.querySelector("#project-color-input").value = text(project?.color) || "#334155";
+  els.projectGithubRepo.value = text(project?.githubRepo);
+  els.projectCodexMode.value = ["cloud", "local", "ask"].includes(project?.codexTargetMode)
+    ? project.codexTargetMode
+    : "ask";
+  els.projectCodexProfile.value = text(project?.codexProfile);
+  els.projectLocalWorkspace.value = text(project?.localWorkspacePath);
+  els.projectDefaultBranch.value = text(project?.defaultBranch) || "main";
+  els.projectEnvironment.value = text(project?.targetEnvironment);
+  els.projectSyncGithub.checked = project?.syncGithub !== false;
+  els.projectModal.showModal();
+  els.projectName.focus();
 }
 
 function fillColumnOptions(selectedColumnId) {
@@ -1133,10 +1195,14 @@ els.taskContextInput.addEventListener("change", async () => {
 });
 
 els.newProjectButton.addEventListener("click", () => {
-  els.projectName.value = "";
-  els.projectDescriptionInput.value = "";
-  els.projectModal.showModal();
-  els.projectName.focus();
+  openProjectModal();
+});
+
+els.projectSettingsButton.addEventListener("click", () => {
+  const project = currentProject();
+  if (project) {
+    openProjectModal(project);
+  }
 });
 
 document.querySelectorAll("[data-close-modal]").forEach((button) => {
@@ -1377,10 +1443,18 @@ els.requestChangesButton.addEventListener("click", async () => {
 
 els.projectForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const projectId = els.projectForm.dataset.projectId;
   const payload = {
     name: els.projectName.value.trim(),
     description: els.projectDescriptionInput.value.trim(),
     color: document.querySelector("#project-color-input").value,
+    githubRepo: els.projectGithubRepo.value.trim(),
+    codexTargetMode: els.projectCodexMode.value,
+    codexProfile: els.projectCodexProfile.value.trim(),
+    localWorkspacePath: els.projectLocalWorkspace.value.trim(),
+    defaultBranch: els.projectDefaultBranch.value.trim() || "main",
+    targetEnvironment: els.projectEnvironment.value.trim(),
+    syncGithub: els.projectSyncGithub.checked,
   };
 
   if (!payload.name) {
@@ -1388,14 +1462,14 @@ els.projectForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const nextStore = await api("/api/projects", {
-    method: "POST",
+  const nextStore = await api(projectId ? `/api/projects/${projectId}` : "/api/projects", {
+    method: projectId ? "PATCH" : "POST",
     body: JSON.stringify(payload),
   });
-  currentProjectId = nextStore.selectedProjectId;
+  currentProjectId = projectId || nextStore.selectedProjectId;
   setStore(nextStore);
   els.projectModal.close();
-  showToast("Project created");
+  showToast(projectId ? "Project settings saved" : "Project created");
 });
 
 els.authForm.addEventListener("submit", async (event) => {

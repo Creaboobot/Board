@@ -112,7 +112,7 @@ async function ensureDataFile() {
 
 function createEmptyStore() {
   return {
-    version: 3,
+    version: 5,
     selectedProjectId: null,
     columns: [
       { id: "backlog", name: "Backlog", description: "Ideas, rough requests, and parking-lot work." },
@@ -132,7 +132,7 @@ function createEmptyStore() {
 }
 
 function normalizeStore(store) {
-  store.version = Math.max(Number(store.version) || 1, 4);
+  store.version = Math.max(Number(store.version) || 1, 5);
   store.columns ??= createEmptyStore().columns;
   store.projects ??= [];
   store.tasks ??= [];
@@ -143,7 +143,7 @@ function normalizeStore(store) {
   store.githubExports ??= [];
 
   for (const project of store.projects) {
-    project.githubRepo = cleanRepoName(project.githubRepo) || defaultGithubRepo || "";
+    normalizeProjectRouting(project);
   }
 
   for (const task of store.tasks) {
@@ -240,6 +240,22 @@ function cleanList(value) {
   }
 
   return [];
+}
+
+function cleanCodexTargetMode(value, fallback = "ask") {
+  const mode = cleanString(value, fallback).toLowerCase();
+  return ["cloud", "local", "ask"].includes(mode) ? mode : fallback;
+}
+
+function normalizeProjectRouting(project) {
+  project.githubRepo = cleanRepoName(project.githubRepo) || defaultGithubRepo || "";
+  project.codexTargetMode = cleanCodexTargetMode(project.codexTargetMode);
+  project.codexProfile = cleanString(project.codexProfile);
+  project.localWorkspacePath = cleanString(project.localWorkspacePath);
+  project.defaultBranch = cleanString(project.defaultBranch, "main");
+  project.targetEnvironment = cleanString(project.targetEnvironment);
+  project.syncGithub = project.syncGithub === false ? false : true;
+  return project;
 }
 
 function cleanContextImages(value) {
@@ -413,8 +429,9 @@ function contextImagesMarkdown(task) {
 
 function githubIssueMarkdown(store, task) {
   const project = requireProject(store, task.projectId);
-  const targetRepo = githubRepoForTask(store, task);
-  const targetEnvironment = cleanString(task.targetEnvironment) || "No environment guidance provided.";
+  const routing = projectRoutingForTask(store, task);
+  const targetRepo = routing.githubRepo;
+  const targetEnvironment = routing.targetEnvironment || "No environment guidance provided.";
 
   return [
     "## Task",
@@ -448,13 +465,19 @@ function githubIssueMarkdown(store, task) {
     `- Labels: ${(task.labels ?? []).join(", ") || "none"}`,
     `- Target repository: ${targetRepo || "none"}`,
     `- Target environment: ${targetEnvironment}`,
+    `- Codex target mode: ${routing.codexTargetMode}`,
+    `- Codex project/profile: ${routing.codexProfile || "none"}`,
+    `- Local workspace: ${routing.localWorkspacePath || "none"}`,
+    `- Default branch: ${routing.defaultBranch || "none"}`,
+    `- GitHub sync: ${routing.syncGithub ? "enabled" : "disabled"}`,
   ].join("\n");
 }
 
 function codexCloudComment(store, task) {
   const project = requireProject(store, task.projectId);
-  const targetRepo = githubRepoForTask(store, task);
-  const targetEnvironment = cleanString(task.targetEnvironment) || "not specified";
+  const routing = projectRoutingForTask(store, task);
+  const targetRepo = routing.githubRepo;
+  const targetEnvironment = routing.targetEnvironment || "not specified";
 
   return [
     "@codex please take this task.",
@@ -473,13 +496,16 @@ function codexCloudComment(store, task) {
     `Board task ID: ${task.id}`,
     `Target repository: ${targetRepo || "not configured"}`,
     `Target environment: ${targetEnvironment}`,
+    `Codex project/profile: ${routing.codexProfile || "not configured"}`,
+    `Default branch: ${routing.defaultBranch || "not configured"}`,
   ].join("\n");
 }
 
 function codexCloudReviewComment(store, task, review) {
   const project = requireProject(store, task.projectId);
-  const targetRepo = githubRepoForTask(store, task);
-  const targetEnvironment = cleanString(task.targetEnvironment);
+  const routing = projectRoutingForTask(store, task);
+  const targetRepo = routing.githubRepo;
+  const targetEnvironment = routing.targetEnvironment;
 
   return [
     "@codex please review this task for implementation readiness only. Do not implement code.",
@@ -521,6 +547,7 @@ function codexCloudReviewComment(store, task, review) {
     `Board task ID: ${task.id}`,
     `Target repository: ${targetRepo || "not configured"}`,
     `Target environment: ${targetEnvironment || "not specified"}`,
+    `Codex project/profile: ${routing.codexProfile || "not configured"}`,
     `Review ID: ${review.id}`,
   ].join("\n");
 }
@@ -528,8 +555,9 @@ function codexCloudReviewComment(store, task, review) {
 function codexCloudFollowUpComment(store, task, note = "") {
   const project = requireProject(store, task.projectId);
   const guidance = cleanString(note);
-  const targetRepo = githubRepoForTask(store, task);
-  const targetEnvironment = cleanString(task.targetEnvironment) || "not specified";
+  const routing = projectRoutingForTask(store, task);
+  const targetRepo = routing.githubRepo;
+  const targetEnvironment = routing.targetEnvironment || "not specified";
 
   return [
     "@codex please continue this task from the updated board card in this same GitHub issue thread.",
@@ -547,6 +575,8 @@ function codexCloudFollowUpComment(store, task, note = "") {
     `Board task ID: ${task.id}`,
     `Target repository: ${targetRepo || "not configured"}`,
     `Target environment: ${targetEnvironment}`,
+    `Codex project/profile: ${routing.codexProfile || "not configured"}`,
+    `Default branch: ${routing.defaultBranch || "not configured"}`,
   ].join("\n");
 }
 
@@ -631,8 +661,9 @@ async function ensureGithubIssueForTask(store, task, repo, timestamp, { status =
 
 function buildTaskPacket(store, task, purpose) {
   const project = requireProject(store, task.projectId);
-  const targetRepo = githubRepoForTask(store, task);
-  const targetEnvironment = cleanString(task.targetEnvironment) || "not specified";
+  const routing = projectRoutingForTask(store, task);
+  const targetRepo = routing.githubRepo;
+  const targetEnvironment = routing.targetEnvironment || "not specified";
 
   return [
     `# ${purpose}: ${task.title}`,
@@ -645,6 +676,11 @@ function buildTaskPacket(store, task, purpose) {
     `Labels: ${(task.labels ?? []).join(", ") || "none"}`,
     `Target repository: ${targetRepo || "not configured"}`,
     `Target environment: ${targetEnvironment}`,
+    `Codex target mode: ${routing.codexTargetMode}`,
+    `Codex project/profile: ${routing.codexProfile || "not configured"}`,
+    `Local workspace: ${routing.localWorkspacePath || "not configured"}`,
+    `Default branch: ${routing.defaultBranch || "not configured"}`,
+    `GitHub sync: ${routing.syncGithub ? "enabled" : "disabled"}`,
     "",
     "## Context",
     task.description || "No description provided.",
@@ -680,7 +716,8 @@ function inferLabels(task) {
   return Array.from(existing).slice(0, 6);
 }
 
-function buildLocalReviewProposal(task) {
+function buildLocalReviewProposal(store, task) {
+  const routing = projectRoutingForTask(store, task);
   const acceptanceCriteria = task.acceptanceCriteria?.length
     ? task.acceptanceCriteria
     : [
@@ -703,8 +740,8 @@ function buildLocalReviewProposal(task) {
     description: task.description || task.title,
     priority: task.priority || "Medium",
     size: task.size || "M",
-    githubRepo: cleanRepoName(task.githubRepo),
-    targetEnvironment: cleanString(task.targetEnvironment),
+    githubRepo: routing.githubRepo,
+    targetEnvironment: routing.targetEnvironment,
     labels: inferLabels(task),
     acceptanceCriteria,
     links: task.links ?? [],
@@ -815,8 +852,21 @@ async function githubRequest(repo, path, options = {}) {
 }
 
 function githubRepoForTask(store, task) {
+  return projectRoutingForTask(store, task).githubRepo;
+}
+
+function projectRoutingForTask(store, task) {
   const project = requireProject(store, task.projectId);
-  return cleanRepoName(task.githubRepo) || cleanRepoName(project.githubRepo) || defaultGithubRepo;
+
+  return {
+    githubRepo: cleanRepoName(task.githubRepo) || cleanRepoName(project.githubRepo) || defaultGithubRepo || "",
+    codexTargetMode: cleanCodexTargetMode(project.codexTargetMode),
+    codexProfile: cleanString(project.codexProfile),
+    localWorkspacePath: cleanString(project.localWorkspacePath),
+    defaultBranch: cleanString(project.defaultBranch, "main"),
+    targetEnvironment: cleanString(task.targetEnvironment) || cleanString(project.targetEnvironment),
+    syncGithub: project.syncGithub !== false,
+  };
 }
 
 function htmlToText(value = "") {
@@ -1585,6 +1635,12 @@ async function handleApi(req, res, url) {
       description: cleanString(payload.description),
       color: cleanString(payload.color, "#334155"),
       githubRepo: cleanRepoName(payload.githubRepo) || defaultGithubRepo || "",
+      codexTargetMode: cleanCodexTargetMode(payload.codexTargetMode),
+      codexProfile: cleanString(payload.codexProfile),
+      localWorkspacePath: cleanString(payload.localWorkspacePath),
+      defaultBranch: cleanString(payload.defaultBranch, "main"),
+      targetEnvironment: cleanString(payload.targetEnvironment),
+      syncGithub: payload.syncGithub === false ? false : true,
       createdAt,
       updatedAt: createdAt,
     };
@@ -1620,10 +1676,35 @@ async function handleApi(req, res, url) {
       project.githubRepo = cleanRepoName(payload.githubRepo);
     }
 
+    if (payload.codexTargetMode !== undefined) {
+      project.codexTargetMode = cleanCodexTargetMode(payload.codexTargetMode);
+    }
+
+    if (payload.codexProfile !== undefined) {
+      project.codexProfile = cleanString(payload.codexProfile);
+    }
+
+    if (payload.localWorkspacePath !== undefined) {
+      project.localWorkspacePath = cleanString(payload.localWorkspacePath);
+    }
+
+    if (payload.defaultBranch !== undefined) {
+      project.defaultBranch = cleanString(payload.defaultBranch, "main");
+    }
+
+    if (payload.targetEnvironment !== undefined) {
+      project.targetEnvironment = cleanString(payload.targetEnvironment);
+    }
+
+    if (payload.syncGithub !== undefined) {
+      project.syncGithub = payload.syncGithub === false ? false : true;
+    }
+
     if (payload.selected === true) {
       store.selectedProjectId = project.id;
     }
 
+    normalizeProjectRouting(project);
     project.updatedAt = now();
     await saveStore(store);
     return jsonResponse(res, 200, store);
@@ -1946,7 +2027,7 @@ async function handleApi(req, res, url) {
 
     if (useLocalReview) {
       review.proposal = {
-        ...buildLocalReviewProposal(task),
+        ...buildLocalReviewProposal(store, task),
         proposedAt: createdAt,
       };
     } else {
