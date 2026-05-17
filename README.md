@@ -8,10 +8,16 @@ A small local task board for keeping Codex-ready work organized across projects.
 node server.mjs
 ```
 
-Open:
+Open the kanban board:
 
 ```text
 http://localhost:3001
+```
+
+Open the fridge recipe prototype:
+
+```text
+http://localhost:3001/recipe.html
 ```
 
 Secure local start:
