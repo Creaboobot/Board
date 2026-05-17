@@ -38,9 +38,9 @@ The intended flow is:
 2. Press `Request task review`. This follows the project route: Local creates a readiness proposal on the board, Cloud creates or reuses the task's GitHub issue and posts a review-only `@codex` request, and Ask prompts for the review route.
 3. When Codex Cloud posts the review proposal, the board syncs it back into the card. Read the proposal, edit the card if needed, then press `Apply proposal`.
 4. Press `Start Codex` when you want implementation to begin. The project route decides whether this starts Codex Cloud or Local Codex. If the review already created a GitHub issue, Codex Cloud implementation is triggered in that same issue thread. The task moves to In Progress.
-5. The server checks GitHub automatically. When a Codex completion comment appears, the result is copied into the card and the task moves to Review.
-6. Press `Accept` to move the task to Done, optionally closing the linked GitHub issue.
-7. Press `Request changes` to add guidance. If the task has a GitHub issue, the board can post that guidance back to GitHub and trigger Codex Cloud again.
+5. The server checks GitHub automatically. Local and Cloud completions both open the same result review view with the original input collapsed and the result output separated from Codex commentary.
+6. Press `Confirm result` to move the task to Done, optionally closing the linked GitHub issue.
+7. Press `Further directions` to add guidance. If the task has a GitHub issue, the board can post that guidance back to GitHub and trigger Codex Cloud again.
 
 The local-only path is still available:
 
