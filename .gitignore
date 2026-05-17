@@ -1,0 +1,5 @@
+kanban-access-token.txt
+github-token.txt
+*.log
+data/
+data/store.json.*.tmp

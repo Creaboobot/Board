@@ -1,0 +1,9 @@
+*.log
+node_modules
+npm-debug.log*
+Dockerfile
+.dockerignore
+kanban-access-token.txt
+github-token.txt
+data
+data/*.tmp

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Kanban</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Projects">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <p class="eyebrow">Codex</p>
+            <h1>Kanban</h1>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-heading">
+            <span>Projects</span>
+            <button class="icon-button" id="new-project-button" type="button" title="New project" aria-label="New project">
+              <span aria-hidden="true">+</span>
+            </button>
+          </div>
+          <nav class="project-list" id="project-list"></nav>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="project-heading">
+            <span class="project-color" id="project-color"></span>
+            <div>
+              <p class="eyebrow" id="project-kicker">Current project</p>
+              <h2 id="project-title">Loading</h2>
+              <p id="project-description"></p>
+            </div>
+          </div>
+
+          <div class="topbar-actions">
+            <label class="search-box">
+              <span class="visually-hidden">Search tasks</span>
+              <input id="search-input" type="search" placeholder="Search tasks" />
+            </label>
+            <button class="primary-button" id="new-task-button" type="button">New task</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" id="stats-grid" aria-label="Project summary"></section>
+
+        <section class="board" id="board" aria-label="Kanban board"></section>
+      </main>
+    </div>
+
+    <dialog class="modal" id="task-modal">
+      <form class="modal-panel" id="task-form" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" id="task-modal-kicker">Task</p>
+            <h2 id="task-modal-title">New task</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="button" data-close-modal aria-label="Close">
+            <span aria-hidden="true">x</span>
+          </button>
+        </div>
+
+        <input id="task-id" name="id" type="hidden" />
+
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>Title</span>
+            <input id="task-title" name="title" required />
+          </label>
+
+          <label class="field">
+            <span>Status</span>
+            <select id="task-column" name="columnId"></select>
+          </label>
+
+          <label class="field">
+            <span>Priority</span>
+            <select id="task-priority" name="priority">
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Size</span>
+            <select id="task-size" name="size">
+              <option>XS</option>
+              <option>S</option>
+              <option selected>M</option>
+              <option>L</option>
+              <option>XL</option>
+            </select>
+          </label>
+
+          <label class="field field-wide">
+            <span>Repository override</span>
+            <input id="task-github-repo" name="githubRepo" placeholder="owner/repo (blank uses project default)" />
+          </label>
+
+          <label class="field field-wide">
+            <span>Environment guidance</span>
+            <textarea id="task-environment" name="targetEnvironment" rows="2" placeholder="Codex environment, branch, deployment target, or repo-specific notes"></textarea>
+          </label>
+
+          <label class="field field-wide">
+            <span>Description</span>
+            <textarea id="task-description" name="description" rows="4"></textarea>
+          </label>
+
+          <label class="field field-wide">
+            <span>Acceptance criteria</span>
+            <textarea id="task-acceptance" name="acceptanceCriteria" rows="4"></textarea>
+          </label>
+
+          <label class="field">
+            <span>Labels</span>
+            <input id="task-labels" name="labels" placeholder="ux, qa, backend" />
+          </label>
+
+          <label class="field">
+            <span>Links</span>
+            <textarea id="task-links" name="links" rows="3"></textarea>
+          </label>
+
+          <label class="field field-wide">
+            <span>Notes</span>
+            <textarea id="task-notes" name="notes" rows="3"></textarea>
+          </label>
+        </div>
+
+        <section class="codex-panel" id="codex-panel" aria-label="Codex workflow">
+          <div>
+            <p class="eyebrow">Codex workflow</p>
+            <h3 id="codex-status-title">No Codex activity yet</h3>
+            <p id="codex-status-body"></p>
+          </div>
+          <div class="proposal-card" id="proposal-card" hidden>
+            <h4>Review proposal</h4>
+            <p id="proposal-summary"></p>
+            <dl id="proposal-details"></dl>
+            <button class="ghost-button" id="apply-review-button" type="button">Apply proposal</button>
+          </div>
+        </section>
+
+        <section class="github-panel" id="github-panel" aria-label="GitHub workflow">
+          <div>
+            <p class="eyebrow">GitHub cloud handoff</p>
+            <h3 id="github-status-title">Not sent to GitHub</h3>
+            <p id="github-status-body"></p>
+          </div>
+          <a class="issue-link" id="github-issue-link" href="#" target="_blank" rel="noreferrer" hidden>
+            Open GitHub issue
+          </a>
+        </section>
+
+        <section class="result-card" id="result-card" aria-label="Codex result" hidden>
+          <div class="result-header">
+            <div>
+              <p class="eyebrow">Result</p>
+              <h3 id="result-summary"></h3>
+            </div>
+            <div class="result-actions">
+              <button class="ghost-button" id="request-changes-button" type="button">Request changes</button>
+              <button class="primary-button" id="accept-task-button" type="button">Accept</button>
+            </div>
+          </div>
+
+          <p id="result-details"></p>
+          <a class="issue-link" id="result-github-link" href="#" target="_blank" rel="noreferrer" hidden>
+            Open GitHub result
+          </a>
+
+          <div class="result-grid">
+            <div>
+              <h4>Changed paths</h4>
+              <ul id="result-changed-paths"></ul>
+            </div>
+            <div>
+              <h4>Verification</h4>
+              <ul id="result-verification"></ul>
+            </div>
+            <div>
+              <h4>Follow-ups</h4>
+              <ul id="result-follow-ups"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="activity-panel" aria-label="Task activity">
+          <p class="eyebrow">Activity</p>
+          <ol class="activity-timeline" id="activity-timeline"></ol>
+        </section>
+
+        <div class="modal-footer">
+          <button class="ghost-button danger" id="delete-task-button" type="button">Delete</button>
+          <button class="ghost-button" id="request-review-button" type="button">Request task review</button>
+          <button class="ghost-button" id="send-codex-button" type="button">Send to Codex</button>
+          <button class="ghost-button" id="send-github-button" type="button">Send to GitHub/Codex Cloud</button>
+          <button class="ghost-button" id="sync-github-button" type="button">Sync GitHub result</button>
+          <button class="primary-button" type="submit">Save task</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="project-modal">
+      <form class="modal-panel small" id="project-form" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Project</p>
+            <h2>New project</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="button" data-close-modal aria-label="Close">
+            <span aria-hidden="true">x</span>
+          </button>
+        </div>
+
+        <label class="field">
+          <span>Name</span>
+          <input id="project-name" name="name" required />
+        </label>
+
+        <label class="field">
+          <span>Description</span>
+          <textarea id="project-description-input" name="description" rows="3"></textarea>
+        </label>
+
+        <label class="field">
+          <span>Color</span>
+          <input id="project-color-input" name="color" type="color" value="#334155" />
+        </label>
+
+        <div class="modal-footer">
+          <button class="primary-button" type="submit">Create project</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal auth-modal" id="auth-modal">
+      <form class="modal-panel small" id="auth-form" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Private board</p>
+            <h2>Access token</h2>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Token</span>
+          <input id="access-token-input" autocomplete="current-password" type="password" />
+        </label>
+
+        <div class="modal-footer">
+          <button class="primary-button" type="submit">Unlock board</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

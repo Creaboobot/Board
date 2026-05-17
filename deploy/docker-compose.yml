@@ -1,0 +1,18 @@
+services:
+  codex-kanban:
+    build:
+      context: ..
+    environment:
+      PORT: "3001"
+      HOST: 0.0.0.0
+      KANBAN_DATA_DIR: /data
+      # Set this before exposing the board publicly.
+      # KANBAN_ACCESS_TOKEN: replace-with-a-long-random-token
+    ports:
+      - "3001:3001"
+    volumes:
+      - codex-kanban-data:/data
+    restart: unless-stopped
+
+volumes:
+  codex-kanban-data:
