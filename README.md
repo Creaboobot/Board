@@ -39,7 +39,7 @@ The intended flow is:
 3. When Codex Cloud posts the review proposal, the board syncs it back into the card. Read the proposal, edit the card if needed, then press `Apply proposal`.
 4. Press `Start Codex` when you want implementation to begin. The project route decides whether this starts Codex Cloud or Local Codex. If the review already created a GitHub issue, Codex Cloud implementation is triggered in that same issue thread. The task moves to In Progress.
 5. The server checks GitHub automatically. Local and Cloud completions both open the same result review view with the original input collapsed and the result output separated from Codex commentary.
-6. Press `Confirm result` to move the task to Done, optionally closing the linked GitHub issue.
+6. Press `Confirm result` to move the task to Done, optionally closing the linked GitHub issue. Done cards stay compact with completion dates; the board shows the latest completed tasks and keeps older items available from `View older`.
 7. Press `Further directions` to add guidance. If the task has a GitHub issue, the board can post that guidance back to GitHub and trigger Codex Cloud again.
 
 The local-only path is still available:
