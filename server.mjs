@@ -2433,6 +2433,10 @@ async function serveStatic(req, res, url) {
     });
     res.end(content);
   } catch {
+    if (extname(filePath)) {
+      return textResponse(res, 404, "Not found");
+    }
+
     const fallback = join(publicDir, "index.html");
 
     if (existsSync(fallback)) {

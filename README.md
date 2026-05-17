@@ -14,12 +14,6 @@ Open the kanban board:
 http://localhost:3001
 ```
 
-Open the fridge recipe prototype:
-
-```text
-http://localhost:3001/recipe.html
-```
-
 Secure local start:
 
 ```powershell
