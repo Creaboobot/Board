@@ -35,7 +35,7 @@ The first board is seeded for Pabal. Add more projects from the sidebar when you
 The intended flow is:
 
 1. Create a task in Backlog.
-2. Press `Request task review`. With GitHub configured, this creates or reuses the task's GitHub issue and posts a review-only `@codex` request.
+2. Press `Request task review`. This follows the project route: Local creates a readiness proposal on the board, Cloud creates or reuses the task's GitHub issue and posts a review-only `@codex` request, and Ask prompts for the review route.
 3. When Codex Cloud posts the review proposal, the board syncs it back into the card. Read the proposal, edit the card if needed, then press `Apply proposal`.
 4. Press `Start Codex` when you want implementation to begin. The project route decides whether this starts Codex Cloud or Local Codex. If the review already created a GitHub issue, Codex Cloud implementation is triggered in that same issue thread. The task moves to In Progress.
 5. The server checks GitHub automatically. When a Codex completion comment appears, the result is copied into the card and the task moves to Review.

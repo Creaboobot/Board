@@ -499,6 +499,23 @@ function chooseCodexStartMode(task) {
   return window.confirm("Start Local Codex instead?") ? "local" : null;
 }
 
+function chooseCodexReviewMode(task) {
+  const route = resolvedTaskRoute(task);
+
+  if (route.mode === "cloud" || route.mode === "local") {
+    return route.mode;
+  }
+
+  if (route.githubRepo) {
+    const useCloudReview = window.confirm(`Request a Codex Cloud readiness review in ${route.githubRepo}?`);
+    if (useCloudReview) {
+      return "cloud";
+    }
+  }
+
+  return window.confirm("Create a local review proposal instead?") ? "local" : null;
+}
+
 function renderList(target, items, emptyText) {
   target.replaceChildren();
   const values = (items ?? []).filter(Boolean);
@@ -1428,16 +1445,21 @@ els.requestReviewButton.addEventListener("click", async () => {
       throw new Error("Save the task before requesting review.");
     }
 
+    const mode = chooseCodexReviewMode(task);
+    if (!mode) {
+      return;
+    }
+
     const nextStore = await api(`/api/tasks/${task.id}/review`, {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify({ mode }),
     });
     setStore(nextStore);
     const updatedTask = nextStore.tasks.find((item) => item.id === task.id);
     if (updatedTask) {
       openTaskModal(updatedTask);
     }
-    showToast(updatedTask?.codexReviewStatus === "proposed" ? "Review proposal ready" : "Codex review requested");
+    showToast(updatedTask?.codexReviewStatus === "proposed" ? "Local review proposal ready" : "Codex Cloud review requested");
   } catch (error) {
     showToast(error.message);
   }

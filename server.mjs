@@ -2000,16 +2000,19 @@ async function handleApi(req, res, url) {
     const store = await loadStore();
     const task = requireTask(store, segments[2]);
     const project = requireProject(store, task.projectId);
-    const repo = cleanRepoName(payload.repo) || githubRepoForTask(store, task);
+    const routing = projectRoutingForTask(store, task);
+    const requestedMode = cleanCodexTargetMode(payload.mode, routing.codexTargetMode);
+    const repo = cleanRepoName(payload.repo) || routing.githubRepo;
     const createdAt = now();
     const packet = buildTaskPacket(store, task, "Codex task review request");
-    const useLocalReview = payload.mode === "local" || !githubToken || !repo;
+    const useLocalReview = requestedMode === "local" || !githubToken || !repo;
     const review = {
       id: `review-${randomUUID().slice(0, 8)}`,
       taskId: task.id,
       projectId: project.id,
       status: useLocalReview ? "proposed" : "cloud-triggered",
       reviewMode: useLocalReview ? "local" : "github-codex",
+      routeMode: requestedMode,
       requestNote: cleanString(payload.note),
       createdAt,
       updatedAt: createdAt,
